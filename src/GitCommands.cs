@@ -2,8 +2,6 @@
 using System.Security.Cryptography;
 using System.Text;
 
-namespace codecrafters_git;
-
 public static class GitCommands
 {
     public static void Init()
@@ -40,6 +38,7 @@ public static class GitCommands
             {
                 deflate.Write(blobData, 0, blobData.Length);
             }
+
             compressedData = outStream.ToArray();
         }
 
@@ -70,6 +69,7 @@ public static class GitCommands
             deflate.CopyTo(ms);
             byte[] decompressed = ms.ToArray();
 
+            // Buscar el primer byte nulo (\0) y extraer solo el contenido
             int nullIndex = Array.IndexOf(decompressed, (byte)0);
             byte[] contentOnly = decompressed[(nullIndex + 1)..];
 
