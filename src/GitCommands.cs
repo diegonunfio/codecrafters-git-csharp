@@ -1,85 +1,63 @@
-﻿using System.IO.Compression;
+﻿using System;
+using System.IO;
+using System.IO.Compression;
 using System.Security.Cryptography;
 using System.Text;
 
-namespace codecrafters_git;
-
-public static class GitCommands
+namespace codecrafters_git
 {
-    public static void HashObject(string filePath)
+    class Program
     {
-        if (!File.Exists(filePath))
+        static void Main(string[] args)
         {
-            Console.Error.WriteLine($"El archivo '{filePath}' no existe.");
-            Environment.Exit(1);
-        }
-
-        byte[] content = File.ReadAllBytes(filePath);
-        string header = $"blob {content.Length}\0";
-        byte[] headerBytes = Encoding.UTF8.GetBytes(header);
-
-        byte[] blobData = new byte[headerBytes.Length + content.Length];
-        Buffer.BlockCopy(headerBytes, 0, blobData, 0, headerBytes.Length);
-        Buffer.BlockCopy(content, 0, blobData, headerBytes.Length, content.Length);
-
-        byte[] hashBytes = SHA1.Create().ComputeHash(blobData);
-        string hash = BitConverter.ToString(hashBytes).Replace("-", "").ToLower();
-        
-        byte[] compressedData;
-        using (var deflateStream = new MemoryStream())
-        {
-            // Zlib header: 0x78 0x9C (compression method/flags)
-            deflateStream.WriteByte(0x78);
-            deflateStream.WriteByte(0x9C);
-
-            using (var compressor = new DeflateStream(deflateStream, CompressionLevel.Optimal, leaveOpen: true))
+            if (args.Length == 3 && args[0] == "hash-object" && args[1] == "-w")
             {
-                compressor.Write(blobData, 0, blobData.Length);
+                string fileName = args[2];
+                string content = File.ReadAllText(fileName); // Asumimos contenido de texto plano
+                byte[] contentBytes = Encoding.UTF8.GetBytes(content);
+                string header = $"blob {contentBytes.Length}\0";
+                byte[] headerBytes = Encoding.UTF8.GetBytes(header);
+
+                // Concatenar los datos del encabezado y el contenido
+                byte[] combinedBytes = new byte[headerBytes.Length + contentBytes.Length];
+                Buffer.BlockCopy(headerBytes, 0, combinedBytes, 0, headerBytes.Length);
+                Buffer.BlockCopy(contentBytes, 0, combinedBytes, headerBytes.Length, contentBytes.Length);
+
+                // Calcular el SHA-1 sobre el contenido completo (encabezado + contenido)
+                string hash = BitConverter.ToString(SHA1.Create().ComputeHash(combinedBytes)).Replace("-", "").ToLower();
+                Console.WriteLine(hash); // Imprimir el hash en consola
+
+                // Ruta donde se almacenará el objeto
+                string objectPath = $".git/objects/{hash.Substring(0, 2)}";
+                Directory.CreateDirectory(objectPath); // Crear el directorio si no existe
+
+                string fullPath = Path.Combine(objectPath, hash.Substring(2));
+
+                // Comprimir los datos con Zlib (añadir el encabezado Zlib)
+                byte[] compressedData;
+                using (var deflateStream = new MemoryStream())
+                {
+                    // Encabezado Zlib: 0x78 0x9C
+                    deflateStream.WriteByte(0x78);
+                    deflateStream.WriteByte(0x9C);
+
+                    // Usar DeflateStream para comprimir los datos
+                    using (var compressor = new DeflateStream(deflateStream, CompressionLevel.Optimal, leaveOpen: true))
+                    {
+                        compressor.Write(combinedBytes, 0, combinedBytes.Length);
+                    }
+
+                    compressedData = deflateStream.ToArray(); // Obtener los datos comprimidos
+                }
+
+                // Guardar los datos comprimidos en el archivo de objetos Git
+                File.WriteAllBytes(fullPath, compressedData);
             }
-
-            compressedData = deflateStream.ToArray();
+            else
+            {
+                Console.Error.WriteLine("Comando no reconocido.");
+                Environment.Exit(1);
+            }
         }
-
-        string dir = Path.Combine(".git", "objects", hash.Substring(0, 2));
-        string fileName = hash.Substring(2);
-        Directory.CreateDirectory(dir);
-        File.WriteAllBytes(Path.Combine(dir, fileName), compressedData);
-
-        Console.WriteLine(hash);
-    }
-    
-    public static void CatFile(string hash)
-    {
-        string dir = Path.Combine(".git", "objects", hash.Substring(0, 2));
-        string fileName = hash.Substring(2);
-        string path = Path.Combine(dir, fileName);
-
-        if (!File.Exists(path))
-        {
-            Console.Error.WriteLine($"El objeto '{hash}' no existe.");
-            Environment.Exit(1);
-        }
-
-        using (var fs = File.OpenRead(path))
-        using (var deflate = new DeflateStream(fs, CompressionMode.Decompress))
-        using (var ms = new MemoryStream())
-        {
-            deflate.CopyTo(ms);
-            byte[] decompressed = ms.ToArray();
-
-            // Buscar el primer byte nulo (\0) y extraer solo el contenido
-            int nullIndex = Array.IndexOf(decompressed, (byte)0);
-            byte[] contentOnly = decompressed[(nullIndex + 1)..];
-
-            Console.Write(Encoding.UTF8.GetString(contentOnly));
-        }
-    }
-
-    public static void Init()
-    {
-        Directory.CreateDirectory(".git");
-        Directory.CreateDirectory(".git/objects");
-        Directory.CreateDirectory(".git/refs");
-        File.WriteAllText(".git/HEAD", "ref: refs/heads/main\n");
     }
 }
