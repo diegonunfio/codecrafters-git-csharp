@@ -14,42 +14,48 @@ public static class GitCommands
 
     public static void HashObject(string filePath)
     {
-        if (!File.Exists(filePath))
+        try
         {
-            Console.Error.WriteLine($"El archivo '{filePath}' no existe.");
-            Environment.Exit(1);
-        }
+            if (!File.Exists(filePath))
+            {
+                Console.Error.WriteLine($"El archivo '{filePath}' no existe.");
+                Environment.Exit(1);
+            }
 
-        byte[] content = File.ReadAllBytes(filePath);
-        string header = $"blob {content.Length}\0";
+            byte[] content = File.ReadAllBytes(filePath);
+            string header = $"blob {content.Length}\0";
 
-        byte[] headerBytes = Encoding.UTF8.GetBytes(header);
-        byte[] blobData = new byte[headerBytes.Length + content.Length];
-        Buffer.BlockCopy(headerBytes, 0, blobData, 0, headerBytes.Length);
-        Buffer.BlockCopy(content, 0, blobData, headerBytes.Length, content.Length);
+            byte[] headerBytes = Encoding.UTF8.GetBytes(header);
+            byte[] blobData = new byte[headerBytes.Length + content.Length];
+            Buffer.BlockCopy(headerBytes, 0, blobData, 0, headerBytes.Length);
+            Buffer.BlockCopy(content, 0, blobData, headerBytes.Length, content.Length);
 
-        byte[] hashBytes = SHA1.Create().ComputeHash(blobData);
-        string hash = BitConverter.ToString(hashBytes).Replace("-", "").ToLower();
+            byte[] hashBytes = SHA1.Create().ComputeHash(blobData);
+            string hash = BitConverter.ToString(hashBytes).Replace("-", "").ToLower();
 
-        byte[] compressedData;
-        {
+            byte[] compressedData;
             using (var outStream = new MemoryStream())
             {
                 using (var zlibStream = new ZLibStream(outStream, CompressionLevel.Optimal, true))
                 {
                     zlibStream.Write(blobData, 0, blobData.Length);
                 }
+
                 compressedData = outStream.ToArray();
             }
 
+            string dir = Path.Combine(".git", "objects", hash.Substring(0, 2));
+            string fileName = hash.Substring(2);
+            Directory.CreateDirectory(dir);
+            File.WriteAllBytes(Path.Combine(dir, fileName), compressedData);
+
+            Console.WriteLine(hash);
         }
-
-        string dir = Path.Combine(".git", "objects", hash.Substring(0, 2));
-        string fileName = hash.Substring(2);
-        Directory.CreateDirectory(dir);
-        File.WriteAllBytes(Path.Combine(dir, fileName), compressedData);
-
-        Console.WriteLine(hash);
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine("Error: " + ex.Message);
+            Environment.Exit(1);
+        }
     }
 
     public static void CatFile(string hash)
