@@ -32,14 +32,16 @@ public static class GitCommands
         string hash = BitConverter.ToString(hashBytes).Replace("-", "").ToLower();
 
         byte[] compressedData;
-        using (var outStream = new MemoryStream())
         {
-            using (var deflate = new DeflateStream(outStream, CompressionLevel.Optimal, true))
+            using (var outStream = new MemoryStream())
             {
-                deflate.Write(blobData, 0, blobData.Length);
+                using (var zlibStream = new ZLibStream(outStream, CompressionLevel.Optimal, true))
+                {
+                    zlibStream.Write(blobData, 0, blobData.Length);
+                }
+                compressedData = outStream.ToArray();
             }
 
-            compressedData = outStream.ToArray();
         }
 
         string dir = Path.Combine(".git", "objects", hash.Substring(0, 2));
