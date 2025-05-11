@@ -40,7 +40,7 @@ class Program
                 byte[] hashBytes = sha1.ComputeHash(fullData);
                 string hashHex = BitConverter.ToString(hashBytes).Replace("-", "").ToLower();
 
-                string dir = $".git/objects{hashHex[..2]}";
+                string dir = $".git/objects/{hashHex[..2]}";
                 string file = hashHex[2..];
                 Directory.CreateDirectory(dir);
 
