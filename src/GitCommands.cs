@@ -1,47 +1,79 @@
 ﻿using System.IO.Compression;
+using System.Security.Cryptography;
 using System.Text;
 
 namespace codecrafters_git;
 
-public class GitCommands
+public static class GitCommands
 {
-    public static void CatFile(string hash)
+    public static void Init()
     {
-        string path = Path.Combine(".git", "objects", hash.Substring(0, 2), hash.Substring(2));
-        if (!File.Exists(path))
+        Directory.CreateDirectory(".git");
+        Directory.CreateDirectory(".git/objects");
+        Directory.CreateDirectory(".git/refs");
+        File.WriteAllText(".git/HEAD", "ref: refs/heads/main\n");
+    }
+
+    public static void HashObject(string filePath)
+    {
+        if (!File.Exists(filePath))
         {
-            Console.Error.WriteLine("Objeto no encontrado");
+            Console.Error.WriteLine($"El archivo '{filePath}' no existe.");
             Environment.Exit(1);
         }
 
-        byte[] compressed = File.ReadAllBytes(path);
+        byte[] content = File.ReadAllBytes(filePath);
+        string header = $"blob {content.Length}\0";
 
-        using (var compressedStream = new MemoryStream(compressed))
-        using (var zlibStream = new ZLibStream(compressedStream, CompressionMode.Decompress)) // ⚠️ Aquí el cambio
-        using (var resultStream = new MemoryStream())
+        byte[] headerBytes = Encoding.UTF8.GetBytes(header);
+        byte[] blobData = new byte[headerBytes.Length + content.Length];
+        Buffer.BlockCopy(headerBytes, 0, blobData, 0, headerBytes.Length);
+        Buffer.BlockCopy(content, 0, blobData, headerBytes.Length, content.Length);
+
+        byte[] hashBytes = SHA1.Create().ComputeHash(blobData);
+        string hash = BitConverter.ToString(hashBytes).Replace("-", "").ToLower();
+
+        byte[] compressedData;
+        using (var outStream = new MemoryStream())
         {
-            zlibStream.CopyTo(resultStream);
-            byte[] decompressed = resultStream.ToArray();
+            using (var deflate = new DeflateStream(outStream, CompressionLevel.Optimal, true))
+            {
+                deflate.Write(blobData, 0, blobData.Length);
+            }
+            compressedData = outStream.ToArray();
+        }
+
+        string dir = Path.Combine(".git", "objects", hash.Substring(0, 2));
+        string fileName = hash.Substring(2);
+        Directory.CreateDirectory(dir);
+        File.WriteAllBytes(Path.Combine(dir, fileName), compressedData);
+
+        Console.WriteLine(hash);
+    }
+
+    public static void CatFile(string hash)
+    {
+        string dir = Path.Combine(".git", "objects", hash.Substring(0, 2));
+        string fileName = hash.Substring(2);
+        string path = Path.Combine(dir, fileName);
+
+        if (!File.Exists(path))
+        {
+            Console.Error.WriteLine($"El objeto '{hash}' no existe.");
+            Environment.Exit(1);
+        }
+
+        using (var fs = File.OpenRead(path))
+        using (var deflate = new DeflateStream(fs, CompressionMode.Decompress))
+        using (var ms = new MemoryStream())
+        {
+            deflate.CopyTo(ms);
+            byte[] decompressed = ms.ToArray();
 
             int nullIndex = Array.IndexOf(decompressed, (byte)0);
-            byte[] contentBytes = new byte[decompressed.Length - nullIndex - 1];
-            Array.Copy(decompressed, nullIndex + 1, contentBytes, 0, contentBytes.Length);
+            byte[] contentOnly = decompressed[(nullIndex + 1)..];
 
-            Console.Write(Encoding.UTF8.GetString(contentBytes));
+            Console.Write(Encoding.UTF8.GetString(contentOnly));
         }
     }
-    public static void Init()
-    {
-        string gitDir = ".git";
-        string objectsDir = Path.Combine(gitDir, "objects");
-        string refsDir = Path.Combine(gitDir, "refs");
-
-        Directory.CreateDirectory(gitDir);
-        Directory.CreateDirectory(objectsDir);
-        Directory.CreateDirectory(refsDir);
-
-        // También se suele crear el archivo HEAD apuntando a la rama principal
-        File.WriteAllText(Path.Combine(gitDir, "HEAD"), "ref: refs/heads/main\n");
-    }
-
 }
