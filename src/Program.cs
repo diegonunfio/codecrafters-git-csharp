@@ -14,8 +14,10 @@ class Program
             if (args.Length == 1 && args[0] == "init")
             {
                 Directory.CreateDirectory(".git/objects");
+                Directory.CreateDirectory(".git/refs");
                 return 0;
             }
+
 
             // Etapa 2: git hash-object -w <file>
             if (args.Length == 3 && args[0] == "hash-object" && args[1] == "-w")
