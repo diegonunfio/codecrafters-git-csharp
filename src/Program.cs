@@ -13,7 +13,7 @@ class Program
             // Etapa 1: git init
             if (args.Length == 1 && args[0] == "init")
             {
-                Directory.CreateDirectory(".git");
+                Directory.CreateDirectory(".git/objects");
                 return 0;
             }
 
