@@ -22,23 +22,23 @@ public static class GitCommands
         Buffer.BlockCopy(headerBytes, 0, blobData, 0, headerBytes.Length);
         Buffer.BlockCopy(content, 0, blobData, headerBytes.Length, content.Length);
 
-        // Calcular el SHA-1 sobre el contenido sin comprimir
         byte[] hashBytes = SHA1.Create().ComputeHash(blobData);
         string hash = BitConverter.ToString(hashBytes).Replace("-", "").ToLower();
-
-        // Comprimir con ZLIB (¡NO con DeflateStream!)
+        
         byte[] compressedData;
-        using (var outStream = new MemoryStream())
+        using (var deflateStream = new MemoryStream())
         {
-            using (var zlib = new ZLibStream(outStream, CompressionLevel.Optimal, leaveOpen: true))
+            deflateStream.WriteByte(0x78);
+            deflateStream.WriteByte(0x9C);
+
+            using (var compressor = new DeflateStream(deflateStream, CompressionLevel.Optimal, leaveOpen: true))
             {
-                zlib.Write(blobData, 0, blobData.Length);
+                compressor.Write(blobData, 0, blobData.Length);
             }
 
-            compressedData = outStream.ToArray();
+            compressedData = deflateStream.ToArray();
         }
 
-        // Guardar en .git/objects
         string dir = Path.Combine(".git", "objects", hash.Substring(0, 2));
         string fileName = hash.Substring(2);
         Directory.CreateDirectory(dir);
