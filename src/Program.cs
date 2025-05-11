@@ -37,8 +37,8 @@ class Program
                 Directory.CreateDirectory(dir);
 
                 using var fs = new FileStream($"{dir}/{file}", FileMode.Create);
-                using var zlib = new ZLibStream(fs, CompressionLevel.Optimal);
-                zlib.Write(fullData, 0, fullData.Length);
+                using var deflate = new DeflateStream(fs, CompressionLevel.Optimal);
+                deflate.Write(fullData, 0, fullData.Length);
 
                 Console.WriteLine(hashHex);
                 return 0; // Exit OK
