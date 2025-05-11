@@ -4,60 +4,36 @@ using System.IO.Compression;
 using System.Security.Cryptography;
 using System.Text;
 
-namespace codecrafters_git
+class Program
 {
-    class Program
+    static void Main(string[] args)
     {
-        static void Main(string[] args)
+        if (args[0] == "hash-object" && args[1] == "-w")
         {
-            if (args.Length == 3 && args[0] == "hash-object" && args[1] == "-w")
-            {
-                string fileName = args[2];
-                string content = File.ReadAllText(fileName); // Asumimos contenido de texto plano
-                byte[] contentBytes = Encoding.UTF8.GetBytes(content);
-                string header = $"blob {contentBytes.Length}\0";
-                byte[] headerBytes = Encoding.UTF8.GetBytes(header);
+            string filePath = args[2];
+            string content = File.ReadAllText(filePath);
+            byte[] contentBytes = Encoding.UTF8.GetBytes(content);
+            string header = $"blob {contentBytes.Length}\0";
+            byte[] headerBytes = Encoding.UTF8.GetBytes(header);
+            
+            byte[] fullData = new byte[headerBytes.Length + contentBytes.Length];
+            Buffer.BlockCopy(headerBytes, 0, fullData, 0, headerBytes.Length);
+            Buffer.BlockCopy(contentBytes, 0, fullData, headerBytes.Length, contentBytes.Length);
 
-                // Concatenar los datos del encabezado y el contenido
-                byte[] combinedBytes = new byte[headerBytes.Length + contentBytes.Length];
-                Buffer.BlockCopy(headerBytes, 0, combinedBytes, 0, headerBytes.Length);
-                Buffer.BlockCopy(contentBytes, 0, combinedBytes, headerBytes.Length, contentBytes.Length);
+            using var sha1 = SHA1.Create();
+            byte[] hashBytes = sha1.ComputeHash(fullData);
+            string hashHex = BitConverter.ToString(hashBytes).Replace("-", "").ToLower();
 
-                // Calcular el SHA-1 sobre el contenido completo (encabezado + contenido)
-                string hash = BitConverter.ToString(SHA1.Create().ComputeHash(combinedBytes)).Replace("-", "").ToLower();
-                Console.WriteLine(hash); // Imprimir el hash en consola
+            string dir = $".git/objects/{hashHex.Substring(0, 2)}";
+            string file = hashHex.Substring(2);
+            Directory.CreateDirectory(dir);
 
-                // Ruta donde se almacenará el objeto
-                string objectPath = $".git/objects/{hash.Substring(0, 2)}";
-                Directory.CreateDirectory(objectPath); // Crear el directorio si no existe
+            using var fs = new FileStream($"{dir}/{file}", FileMode.Create);
+            using var deflate = new ZLibStream(fs, CompressionLevel.Optimal);
+            deflate.Write(fullData, 0, fullData.Length);
 
-                string fullPath = Path.Combine(objectPath, hash.Substring(2));
-
-                // Comprimir los datos con Zlib (añadir el encabezado Zlib)
-                byte[] compressedData;
-                using (var deflateStream = new MemoryStream())
-                {
-                    // Encabezado Zlib: 0x78 0x9C
-                    deflateStream.WriteByte(0x78);
-                    deflateStream.WriteByte(0x9C);
-
-                    // Usar DeflateStream para comprimir los datos
-                    using (var compressor = new DeflateStream(deflateStream, CompressionLevel.Optimal, leaveOpen: true))
-                    {
-                        compressor.Write(combinedBytes, 0, combinedBytes.Length);
-                    }
-
-                    compressedData = deflateStream.ToArray(); // Obtener los datos comprimidos
-                }
-
-                // Guardar los datos comprimidos en el archivo de objetos Git
-                File.WriteAllBytes(fullPath, compressedData);
-            }
-            else
-            {
-                Console.Error.WriteLine("Comando no reconocido.");
-                Environment.Exit(1);
-            }
+            Console.WriteLine(hashHex);
         }
     }
 }
+
