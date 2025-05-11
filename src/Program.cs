@@ -39,8 +39,43 @@ class Program
                 using var fs = new FileStream($"{dir}/{file}", FileMode.Create);
                 using var zlib = new ZLibStream(fs, CompressionLevel.Optimal);
                 zlib.Write(fullData, 0, fullData.Length);
+
                 Console.WriteLine(hashHex);
-                return 0; // Exit OK
+                return 0;
+            }
+            else if (args.Length == 3 && args[0] == "cat-file" && args[1] == "-p")
+            {
+                string hash = args[2];
+                string dir = $".git/objects/{hash[..2]}";
+                string file = hash[2..];
+                string path = Path.Combine(dir, file);
+
+                if (!File.Exists(path))
+                {
+                    Console.Error.WriteLine("Error: object not found.");
+                    return 1;
+                }
+
+                byte[] compressed = File.ReadAllBytes(path);
+
+                using var inputStream = new MemoryStream(compressed);
+                using var zlib = new ZLibStream(inputStream, CompressionMode.Decompress);
+                using var output = new MemoryStream();
+                zlib.CopyTo(output);
+
+                byte[] decompressed = output.ToArray();
+
+                int nullIndex = Array.IndexOf(decompressed, (byte)0);
+                if (nullIndex < 0)
+                {
+                    Console.Error.WriteLine("Invalid blob format.");
+                    return 1;
+                }
+
+                byte[] contentBytes = decompressed[(nullIndex + 1)..];
+                string content = Encoding.UTF8.GetString(contentBytes);
+                Console.Write(content); // ¡Importante: sin salto de línea extra!
+                return 0;
             }
             else
             {
