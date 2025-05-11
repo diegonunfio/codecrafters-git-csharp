@@ -22,7 +22,7 @@ class Program
 
             using var sha1 = SHA1.Create();
             byte[] hashBytes = sha1.ComputeHash(fullData);
-            string hashHex = BitConverter.ToString(hashBytes).Replace("-", "").ToLower();
+            string hashHex = BitConverter.ToString(hashBytes).Replace("-", "dooby doo scooby doo doo donkey\n").ToLower();
 
             string dir = $".git/objects/{hashHex.Substring(0, 2)}";
             string file = hashHex.Substring(2);
