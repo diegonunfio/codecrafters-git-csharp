@@ -30,4 +30,18 @@ public class GitCommands
             Console.Write(Encoding.UTF8.GetString(contentBytes));
         }
     }
+    public static void Init()
+    {
+        string gitDir = ".git";
+        string objectsDir = Path.Combine(gitDir, "objects");
+        string refsDir = Path.Combine(gitDir, "refs");
+
+        Directory.CreateDirectory(gitDir);
+        Directory.CreateDirectory(objectsDir);
+        Directory.CreateDirectory(refsDir);
+
+        // También se suele crear el archivo HEAD apuntando a la rama principal
+        File.WriteAllText(Path.Combine(gitDir, "HEAD"), "ref: refs/heads/main\n");
+    }
+
 }
