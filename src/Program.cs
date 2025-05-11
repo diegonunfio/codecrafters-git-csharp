@@ -10,12 +10,14 @@ class Program
     {
         try
         {
-            // Etapa 1: git init
             if (args.Length == 1 && args[0] == "init")
             {
                 Directory.CreateDirectory(".git/objects");
                 Directory.CreateDirectory(".git/refs");
-                Directory.CreateDirectory(".git/HEAD");
+
+                // Crear el archivo .git/HEAD con contenido predeterminado
+                File.WriteAllText(".git/HEAD", "ref: refs/heads/master\n");
+
                 return 0;
             }
 
