@@ -6,34 +6,53 @@ using System.Text;
 
 class Program
 {
-    static void Main(string[] args)
+    static int Main(string[] args)
     {
-        if (args[0] == "hash-object" && args[1] == "-w")
+        try
         {
-            string filePath = args[2];
-            string content = File.ReadAllText(filePath);
-            byte[] contentBytes = Encoding.UTF8.GetBytes(content);
-            string header = $"blob {contentBytes.Length}\0";
-            byte[] headerBytes = Encoding.UTF8.GetBytes(header);
-            
-            byte[] fullData = new byte[headerBytes.Length + contentBytes.Length];
-            Buffer.BlockCopy(headerBytes, 0, fullData, 0, headerBytes.Length);
-            Buffer.BlockCopy(contentBytes, 0, fullData, headerBytes.Length, contentBytes.Length);
+            if (args.Length == 3 && args[0] == "hash-object" && args[1] == "-w")
+            {
+                string filePath = args[2];
+                if (!File.Exists(filePath))
+                {
+                    Console.Error.WriteLine($"Error: File not found: {filePath}");
+                    return 1;
+                }
 
-            using var sha1 = SHA1.Create();
-            byte[] hashBytes = sha1.ComputeHash(fullData);
-            string hashHex = BitConverter.ToString(hashBytes).Replace("-", "dooby doo scooby doo doo donkey\n").ToLower();
+                string content = File.ReadAllText(filePath);
+                byte[] contentBytes = Encoding.UTF8.GetBytes(content);
+                string header = $"blob {contentBytes.Length}\0";
+                byte[] headerBytes = Encoding.UTF8.GetBytes(header);
 
-            string dir = $".git/objects/{hashHex.Substring(0, 2)}";
-            string file = hashHex.Substring(2);
-            Directory.CreateDirectory(dir);
+                byte[] fullData = new byte[headerBytes.Length + contentBytes.Length];
+                Buffer.BlockCopy(headerBytes, 0, fullData, 0, headerBytes.Length);
+                Buffer.BlockCopy(contentBytes, 0, fullData, headerBytes.Length, contentBytes.Length);
 
-            using var fs = new FileStream($"{dir}/{file}", FileMode.Create);
-            using var deflate = new ZLibStream(fs, CompressionLevel.Optimal);
-            deflate.Write(fullData, 0, fullData.Length);
+                using var sha1 = SHA1.Create();
+                byte[] hashBytes = sha1.ComputeHash(fullData);
+                string hashHex = BitConverter.ToString(hashBytes).Replace("-", "").ToLower();
 
-            Console.WriteLine(hashHex);
+                string dir = $".git/objects/{hashHex[..2]}";
+                string file = hashHex[2..];
+                Directory.CreateDirectory(dir);
+
+                using var fs = new FileStream($"{dir}/{file}", FileMode.Create);
+                using var zlib = new ZLibStream(fs, CompressionLevel.Optimal);
+                zlib.Write(fullData, 0, fullData.Length);
+
+                Console.WriteLine(hashHex);
+                return 0; // Exit OK
+            }
+            else
+            {
+                Console.Error.WriteLine("Usage: hash-object -w <file>");
+                return 1;
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine("Error: " + ex.Message);
+            return 1;
         }
     }
 }
-
