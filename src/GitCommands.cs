@@ -28,6 +28,7 @@ public static class GitCommands
         byte[] compressedData;
         using (var deflateStream = new MemoryStream())
         {
+            // Zlib header: 0x78 0x9C (compression method/flags)
             deflateStream.WriteByte(0x78);
             deflateStream.WriteByte(0x9C);
 
