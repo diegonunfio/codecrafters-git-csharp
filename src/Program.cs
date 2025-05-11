@@ -10,6 +10,14 @@ class Program
     {
         try
         {
+            // Etapa 1: git init
+            if (args.Length == 1 && args[0] == "init")
+            {
+                Directory.CreateDirectory(".git");
+                return 0;
+            }
+
+            // Etapa 2: git hash-object -w <file>
             if (args.Length == 3 && args[0] == "hash-object" && args[1] == "-w")
             {
                 string filePath = args[2];
@@ -43,7 +51,9 @@ class Program
                 Console.WriteLine(hashHex);
                 return 0;
             }
-            else if (args.Length == 3 && args[0] == "cat-file" && args[1] == "-p")
+
+            // Etapa 3: git cat-file -p <hash>
+            if (args.Length == 3 && args[0] == "cat-file" && args[1] == "-p")
             {
                 string hash = args[2];
                 string dir = $".git/objects/{hash[..2]}";
@@ -74,14 +84,13 @@ class Program
 
                 byte[] contentBytes = decompressed[(nullIndex + 1)..];
                 string content = Encoding.UTF8.GetString(contentBytes);
-                Console.Write(content); // ¡Importante: sin salto de línea extra!
+                Console.Write(content); // No usar WriteLine
                 return 0;
             }
-            else
-            {
-                Console.Error.WriteLine("Usage: hash-object -w <file>");
-                return 1;
-            }
+
+            // Si el comando no es válido
+            Console.Error.WriteLine("Usage: hash-object -w <file>");
+            return 1;
         }
         catch (Exception ex)
         {
