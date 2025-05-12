@@ -6,100 +6,51 @@ using System.Text;
 
 class Program
 {
-    static int Main(string[] args)
+    public static void LsTreeNameOnly(string sha)
     {
-        try
+        string path = $".git/objects/{sha.Substring(0, 2)}/{sha.Substring(2)}";
+        byte[] compressed = File.ReadAllBytes(path);
+
+        // Descomprimir usando DeflateStream (Zlib)
+        using var ms = new MemoryStream(compressed);
+        using var zlib = new DeflateStream(ms, CompressionMode.Decompress);
+        using var decompressedStream = new MemoryStream();
+        zlib.CopyTo(decompressedStream);
+        byte[] decompressed = decompressedStream.ToArray();
+
+        // Saltar el encabezado ("tree <size>\0")
+        int index = Array.IndexOf(decompressed, (byte)0);
+        int pos = index + 1;
+
+        while (pos < decompressed.Length)
         {
-            if (args.Length == 1 && args[0] == "init")
-            {
-                Directory.CreateDirectory(".git/objects");
-                Directory.CreateDirectory(".git/refs");
+            // Leer modo
+            int spaceIndex = Array.IndexOf(decompressed, (byte)' ', pos);
+            string mode = Encoding.ASCII.GetString(decompressed, pos, spaceIndex - pos);
+            pos = spaceIndex + 1;
 
-                // Crear el archivo .git/HEAD con contenido predeterminado
-                File.WriteAllText(".git/HEAD", "ref: refs/heads/master\n");
+            // Leer nombre
+            int nullIndex = Array.IndexOf(decompressed, (byte)0, pos);
+            string name = Encoding.ASCII.GetString(decompressed, pos, nullIndex - pos);
+            pos = nullIndex + 1;
 
-                return 0;
-            }
+            // Saltar 20 bytes (SHA binario)
+            pos += 20;
 
-            // Etapa 2: git hash-object -w <file>
-            if (args.Length == 3 && args[0] == "hash-object" && args[1] == "-w")
-            {
-                string filePath = args[2];
-                if (!File.Exists(filePath))
-                {
-                    Console.Error.WriteLine($"Error: File not found: {filePath}");
-                    return 1;
-                }
-
-                string content = File.ReadAllText(filePath);
-                byte[] contentBytes = Encoding.UTF8.GetBytes(content);
-                string header = $"blob {contentBytes.Length}\0";
-                byte[] headerBytes = Encoding.UTF8.GetBytes(header);
-
-                byte[] fullData = new byte[headerBytes.Length + contentBytes.Length];
-                Buffer.BlockCopy(headerBytes, 0, fullData, 0, headerBytes.Length);
-                Buffer.BlockCopy(contentBytes, 0, fullData, headerBytes.Length, contentBytes.Length);
-
-                using var sha1 = SHA1.Create();
-                byte[] hashBytes = sha1.ComputeHash(fullData);
-                string hashHex = BitConverter.ToString(hashBytes).Replace("-", "").ToLower();
-
-                string dir = $".git/objects/{hashHex[..2]}";
-                string file = hashHex[2..];
-                Directory.CreateDirectory(dir);
-
-                using var fs = new FileStream($"{dir}/{file}", FileMode.Create);
-                using var zlib = new ZLibStream(fs, CompressionLevel.Optimal);
-                zlib.Write(fullData, 0, fullData.Length);
-
-                Console.WriteLine(hashHex);
-                return 0;
-            }
-
-            // Etapa 3: git cat-file -p <hash>
-            if (args.Length == 3 && args[0] == "cat-file" && args[1] == "-p")
-            {
-                string hash = args[2];
-                string dir = $".git/objects/{hash[..2]}";
-                string file = hash[2..];
-                string path = Path.Combine(dir, file);
-
-                if (!File.Exists(path))
-                {
-                    Console.Error.WriteLine("Error: object not found.");
-                    return 1;
-                }
-
-                byte[] compressed = File.ReadAllBytes(path);
-
-                using var inputStream = new MemoryStream(compressed);
-                using var zlib = new ZLibStream(inputStream, CompressionMode.Decompress);
-                using var output = new MemoryStream();
-                zlib.CopyTo(output);
-
-                byte[] decompressed = output.ToArray();
-
-                int nullIndex = Array.IndexOf(decompressed, (byte)0);
-                if (nullIndex < 0)
-                {
-                    Console.Error.WriteLine("Invalid blob format.");
-                    return 1;
-                }
-
-                byte[] contentBytes = decompressed[(nullIndex + 1)..];
-                string content = Encoding.UTF8.GetString(contentBytes);
-                Console.Write(content); // No usar WriteLine
-                return 0;
-            }
-
-            // Si el comando no es válido
-            Console.Error.WriteLine("Usage: hash-object -w <file>");
-            return 1;
+            // Imprimir el nombre
+            Console.WriteLine(name);
         }
-        catch (Exception ex)
+    }
+
+    public static void Main(string[] args)
+    {
+        if (args.Length == 3 && args[0] == "ls-tree" && args[1] == "--name-only")
         {
-            Console.Error.WriteLine("Error: " + ex.Message);
-            return 1;
+            LsTreeNameOnly(args[2]);
+        }
+        else
+        {
+            Console.WriteLine("Uso: git.sh ls-tree --name-only <sha>");
         }
     }
 }
