@@ -6,14 +6,23 @@ using System.Text;
 
 class Program
 {
-   public static void Init()
+    public static void Init()
     {
         Directory.CreateDirectory(".git/objects/info");
         Directory.CreateDirectory(".git/objects/pack");
         Directory.CreateDirectory(".git/refs/heads");
-
         File.WriteAllText(".git/HEAD", "ref: refs/heads/master\n");
         Console.WriteLine("Initialized git repository");
+    }
+
+    public static byte[] DecompressGitObject(byte[] compressed)
+    {
+        // Git uses zlib compression, which includes a 2-byte header
+        using var input = new MemoryStream(compressed, 2, compressed.Length - 2);
+        using var deflate = new DeflateStream(input, CompressionMode.Decompress);
+        using var output = new MemoryStream();
+        deflate.CopyTo(output);
+        return output.ToArray();
     }
 
     public static void LsTreeNameOnly(string sha)
@@ -25,17 +34,11 @@ class Program
         if (!File.Exists(path))
         {
             Console.Error.WriteLine("Tree object not found: " + path);
-            return;
+            Environment.Exit(1);
         }
 
         byte[] compressed = File.ReadAllBytes(path);
-
-        // Descomprimir objeto zlib
-        using var ms = new MemoryStream(compressed);
-        using var zlib = new DeflateStream(ms, CompressionMode.Decompress);
-        using var decompressedStream = new MemoryStream();
-        zlib.CopyTo(decompressedStream);
-        byte[] decompressed = decompressedStream.ToArray();
+        byte[] decompressed = DecompressGitObject(compressed);
 
         // Saltar encabezado "tree <size>\0"
         int index = Array.IndexOf(decompressed, (byte)0);
@@ -62,17 +65,26 @@ class Program
 
     public static void Main(string[] args)
     {
-        if (args.Length == 1 && args[0] == "init")
+        try
         {
-            Init();
+            if (args.Length == 1 && args[0] == "init")
+            {
+                Init();
+            }
+            else if (args.Length == 3 && args[0] == "ls-tree" && args[1] == "--name-only")
+            {
+                LsTreeNameOnly(args[2]);
+            }
+            else
+            {
+                Console.WriteLine("Uso: git.sh ls-tree --name-only <sha>");
+                Environment.Exit(1);
+            }
         }
-        else if (args.Length == 3 && args[0] == "ls-tree" && args[1] == "--name-only")
+        catch (Exception e)
         {
-            LsTreeNameOnly(args[2]);
-        }
-        else
-        {
-            Console.WriteLine("Uso: git.sh ls-tree --name-only <sha>");
+            Console.Error.WriteLine(e);
+            Environment.Exit(1);
         }
     }
 }
