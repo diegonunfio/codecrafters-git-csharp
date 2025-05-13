@@ -15,14 +15,11 @@ class Program
       return;
     }
 
-    // You can use print statements as follows for debugging, they'll be visible
-    // when running tests.
     Console.Error.WriteLine("Logs from your program will appear here!");
     string command = args[0];
     if (command == "init")
     {
-      // Uncomment this block to pass the first stage
-      //
+
       Directory.CreateDirectory(".git");
       Directory.CreateDirectory(".git/objects");
       Directory.CreateDirectory(".git/refs");
@@ -238,6 +235,43 @@ class Program
       var hashString = Convert.ToHexString(currentFilePathHash).ToLower();
       Console.Write(hashString);
     }
+    else if (command == "commit-tree")
+    {
+      if (args.Length < 4)
+      {
+        Console.WriteLine("Usage: git commit-tree <tree> -m <message>");
+        return;
+      }
+
+      string treeHash = args[1];
+      bool isParent = args[2] == "-p";
+      if (isParent)
+      {
+        if (args.Length < 5)
+        {
+          Console.WriteLine(
+            "Usage: git commit-tree <tree> -p <parent> -m <message>");
+          return;
+        }
+      }
+
+      string message = args[^1];
+      string commitObject = $"tree {treeHash}\n";
+      if (isParent)
+      {
+        commitObject += $"parent {args[3]}\n";
+      }
+
+      commitObject +=
+        $"author {Environment.UserName} <author@mail.com> {DateTimeOffset.UtcNow.ToUnixTimeSeconds()} +0000\n";
+      commitObject +=
+        $"committer {Environment.UserName} <commiter@mail.com> {DateTimeOffset.UtcNow.ToUnixTimeSeconds()} +0000\n";
+      commitObject += $"\n{message}\n";
+      byte[] commitObjectBytes = System.Text.Encoding.UTF8.GetBytes(commitObject);
+      byte[] commitHashBytes = GenerateHashByte("commit", commitObjectBytes);
+      string commitHashString = Convert.ToHexString(commitHashBytes).ToLower();
+      Console.WriteLine(commitHashString);
+    }
     else
     {
       throw new ArgumentException($"Unknown command {command}");
@@ -319,6 +353,6 @@ class Program
       return memoryStream.ToArray();
     }
   }
-}
 
-public record TreeEntry(string Mode, string FileName, byte[] Hash);
+  public record TreeEntry(string Mode, string FileName, byte[] Hash);
+}
