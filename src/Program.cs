@@ -82,7 +82,7 @@ class Program
         if (!File.Exists(objectPath))
         {
             using var output = new MemoryStream();
-            using (var deflate = new DeflateStream(output, CompressionLevel.Optimal, leaveOpen: true))
+            using (var deflate = new ZLibStream(output, CompressionLevel.Optimal, leaveOpen: true))
             {
                 deflate.Write(fullContent, 0, fullContent.Length);
             }
@@ -91,6 +91,7 @@ class Program
 
         Console.WriteLine(shaHex);
     }
+
 
     public static void Main(string[] args)
     {
