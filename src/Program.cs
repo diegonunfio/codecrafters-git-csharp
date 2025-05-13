@@ -9,6 +9,15 @@ class Program
 {
     static void Main(string[] args)
     {
+        if (args.Length == 0)
+            return;
+
+        if (args.Length == 1 && args[0] == "init")
+        {
+            Directory.CreateDirectory(".git/objects");
+            Directory.CreateDirectory(".git/refs/heads");
+            File.WriteAllText(".git/HEAD", "ref: refs/heads/master\n");
+        }
         if (args.Length == 3 && args[0] == "ls-tree" && args[1] == "--name-only")
         {
             string treeSha = args[2];
