@@ -7,180 +7,318 @@ using System.Text;
 
 class Program
 {
-    static void Main(string[] args)
+  static void Main(string[] args)
+  {
+    if (args.Length < 1)
     {
-        if (args.Length < 1)
+      Console.WriteLine("Please provide a command.");
+      return;
+    }
+
+    // You can use print statements as follows for debugging, they'll be visible
+    // when running tests.
+    Console.Error.WriteLine("Logs from your program will appear here!");
+    string command = args[0];
+    if (command == "init")
+    {
+      // Uncomment this block to pass the first stage
+      //
+      Directory.CreateDirectory(".git");
+      Directory.CreateDirectory(".git/objects");
+      Directory.CreateDirectory(".git/refs");
+      File.WriteAllText(".git/HEAD", "ref: refs/heads/main\n");
+      Console.WriteLine("Initialized git directory");
+    }
+    else if (command == "cat-file")
+    {
+      if (args.Length < 3)
+      {
+        Console.WriteLine("Usage: git cat-file <type> <object>");
+        return;
+      }
+
+      string type = args[1];
+      if (type != "-p")
+      {
+        Console.WriteLine($"Unknown type {type}");
+        return;
+      }
+
+      string objectName = args[2];
+      string objectPath =
+        Path.Combine(".git", "objects", objectName[..2], objectName[2..]);
+      if (!File.Exists(objectPath))
+      {
+        Console.WriteLine($"Object {objectName} not found");
+        return;
+      }
+
+      using var stream = File.OpenRead(objectPath);
+      using ZLibStream decompressionStream =
+        new(stream, CompressionMode.Decompress);
+      MemoryStream memoryStream = new();
+      decompressionStream.CopyTo(memoryStream);
+      memoryStream.Position = 0;
+      using StreamReader reader = new(memoryStream);
+      string content = reader.ReadToEnd();
+      string objectType = content[..4];
+      if (objectType != "blob")
+      {
+        Console.WriteLine($"Unknown object type {objectType}");
+        return;
+      }
+
+      int zeroByteIndex = content[5..].IndexOf('\0');
+      if (zeroByteIndex == -1)
+      {
+        Console.WriteLine($"Invalid object {objectName}");
+        return;
+      }
+
+      string sizeStringWithoutZero = content.Substring(5, zeroByteIndex);
+      if (!int.TryParse(sizeStringWithoutZero, out int objectSize))
+      {
+        Console.WriteLine($"Invalid object size {sizeStringWithoutZero}");
+        return;
+      }
+
+      Console.Write(content[(5 + zeroByteIndex + 1)..]);
+    }
+    else if (command == "hash-object")
+    {
+      if (args.Length < 2)
+      {
+        Console.WriteLine("Usage: git hash-object <file>");
+        return;
+      }
+
+      string filePath = args[1];
+      bool writeObject = args[1] == "-w";
+      if (writeObject)
+      {
+        if (args.Length < 3)
         {
-            Console.WriteLine("Please provide a command.");
-            return;
+          Console.WriteLine("Usage: git hash-object -w <file>");
+          return;
         }
 
-        string command = args[0];
-        if (command == "init")
+        filePath = args[2];
+      }
+
+      if (!File.Exists(filePath))
+      {
+        Console.WriteLine($"File {filePath} not found");
+        return;
+      }
+
+      using var stream = File.OpenRead(filePath);
+      using MemoryStream memoryStream = new();
+      stream.CopyTo(memoryStream);
+      memoryStream.Position = 0;
+      string objectType = "blob";
+      string header = $"{objectType} {memoryStream.Length}\0";
+      byte[] headerBytes = System.Text.Encoding.UTF8.GetBytes(header);
+      using MemoryStream headerStream = new();
+      headerStream.Write(headerBytes, 0, headerBytes.Length);
+      memoryStream.CopyTo(headerStream);
+      // byte[] sha1Hash =
+      // System.Security.Cryptography.SHA1.Create().ComputeHash(headerStream.ToArray());
+      byte[] sha1Hash =
+        System.Security.Cryptography.SHA1.HashData(headerStream.ToArray());
+      string sha1HashString =
+        BitConverter.ToString(sha1Hash).Replace("-", "").ToLowerInvariant();
+      if (writeObject)
+      {
+        string objectDirectory =
+          Path.Combine(".git", "objects", sha1HashString[..2]);
+        Directory.CreateDirectory(objectDirectory);
+        string objectPath = Path.Combine(objectDirectory, sha1HashString[2..]);
+        using FileStream fileStream = File.Create(objectPath);
+        using ZLibStream compressionStream =
+          new(fileStream, CompressionMode.Compress);
+        headerStream.Position = 0;
+        headerStream.CopyTo(compressionStream);
+      }
+
+      Console.WriteLine(sha1HashString);
+    }
+    else if (command == "ls-tree")
+    {
+      if (args.Length < 2)
+      {
+        Console.WriteLine("Usage: git ls-tree <object>");
+        return;
+      }
+
+      bool nameOnly = false;
+      string objectName = args[1];
+      if (objectName == "--name-only")
+      {
+        if (args.Length < 3)
         {
-            Directory.CreateDirectory(".git");
-            Directory.CreateDirectory(".git/objects");
-            Directory.CreateDirectory(".git/refs");
-            File.WriteAllText(".git/HEAD", "ref: refs/heads/main\n");
-            Console.WriteLine("Initialized git directory");
+          Console.WriteLine("Usage: git ls-tree --name-only <object>");
+          return;
         }
-        else if (command == "cat-file")
+
+        objectName = args[2];
+        nameOnly = true;
+      }
+
+      string objectPath =
+        Path.Combine(".git", "objects", objectName[..2], objectName[2..]);
+      if (!File.Exists(objectPath))
+      {
+        Console.WriteLine($"Object {objectName} not found");
+        return;
+      }
+
+      using var stream = File.OpenRead(objectPath);
+      using var decompressionStream =
+        new ZLibStream(stream, CompressionMode.Decompress);
+      using var memoryStream = new MemoryStream();
+      decompressionStream.CopyTo(memoryStream);
+      memoryStream.Position = 0;
+      using var reader = new BinaryReader(memoryStream);
+      string header = System.Text.Encoding.UTF8.GetString(reader.ReadBytes(4));
+      if (header != "tree")
+      {
+        Console.WriteLine($"Invalid object type: {header}");
+        return;
+      }
+
+      string sizeString = "";
+      char c;
+      while ((c = (char)reader.ReadByte()) != '\0')
+      {
+        sizeString += c;
+      }
+
+      // Console.WriteLine($"size: {sizeString}");
+      while (memoryStream.Position < memoryStream.Length)
+      {
+        // Read mode (e.g., 100644 or 40000)
+        string mode = "";
+        while ((c = (char)reader.ReadByte()) != ' ')
         {
-            if (args.Length != 3)
-            {
-                Console.Error.WriteLine(
-                    "cat-file command requires 3 arguments: git cat-file <argument> <sha1-hash>");
-                return;
-            }
-
-            string argument = args[1];
-            string hash = args[2];
-            if (argument != "-p")
-            {
-                Console.Error.WriteLine(
-                    "only the -p argument is supported for the cat-file command");
-                return;
-            }
-
-            string objectSubDir = hash[..2];
-            string objectFile = hash[2..];
-            if (!Directory.Exists($".git/objects/{objectSubDir}") ||
-                !File.Exists($".git/objects/{objectSubDir}/{objectFile}"))
-            {
-                Console.Error.WriteLine("invalid sha1 hash");
-                return;
-            }
-
-            byte[] compressedFileContents =
-                File.ReadAllBytes($".git/objects/{objectSubDir}/{objectFile}");
-            byte[] decompressedData = compressedFileContents.DecompressZlibData();
-            string fileContents = Encoding.UTF8.GetString(decompressedData);
-            string[] nullSplitContents = fileContents.Split("\0");
-            if (nullSplitContents.Length != 2)
-            {
-                Console.Error.WriteLine(
-                    "corrupted git repository - improper object file format");
-                return;
-            }
-
-            string blobContents = nullSplitContents[1];
-            Console.Write(blobContents);
+          mode += c;
         }
-        else if (command == "hash-object")
+
+        // Read file name
+        string name = "";
+        while ((c = (char)reader.ReadByte()) != '\0')
         {
-            if (args.Length < 2 || args.Length > 3)
-            {
-                Console.Error.WriteLine("usage: git hash-object <args> <filename>");
-            }
-
-            bool shouldWriteToFile = false;
-            string filename = args[1];
-            if (args[1] == "-w")
-            {
-                shouldWriteToFile = true;
-                filename = args[2];
-            }
-
-            byte[] fileContent = File.ReadAllBytes(filename);
-            byte[] header = Encoding.UTF8.GetBytes($"blob {fileContent.Length}\0");
-            byte[] output = [..header.Concat(fileContent)];
-            string fileHash = output.GetSha1Hash();
-            Console.WriteLine(fileHash);
-            if (shouldWriteToFile)
-            {
-                string objectSubDir = fileHash[..2];
-                string objectFileName = fileHash[2..];
-                Directory.CreateDirectory($".git/objects/{objectSubDir}");
-                FileStream fs =
-                    File.Create($".git/objects/{objectSubDir}/{objectFileName}");
-                output.CompressZlibData(fs);
-            }
+          name += c;
         }
-        else if (command == "ls-tree")
+
+        // Read SHA1 hash (20 bytes)
+        byte[] sha1Bytes = reader.ReadBytes(20);
+        string sha1 =
+          BitConverter.ToString(sha1Bytes).Replace("-", "").ToLowerInvariant();
+        string type = mode == "40000" ? "tree" : "blob";
+        if (nameOnly)
         {
-            string shaHash = args[2];
-            string objectSubDir = shaHash[..2];
-            string objectFileName = shaHash[2..];
-            byte[] compressedFileContent =
-                File.ReadAllBytes($".git/objects/{objectSubDir}/{objectFileName}");
-            string stringFileContent =
-                Encoding.UTF8.GetString(compressedFileContent.DecompressZlibData());
-            string[] nullSplitFileContent = stringFileContent.Split("\0");
-            IEnumerable<string> filenames =
-                nullSplitFileContent.Skip(1).Select(s => s.Split(" ").Last()).SkipLast(1);
-            foreach (string? filename in filenames)
-            {
-                Console.WriteLine(filename);
-            }
-        }
-        else if (command == "write-tree")
-        {
-            string currentDirectory = Directory.GetCurrentDirectory();
-            (string hash, byte[] _) = WriteTreeObject(currentDirectory);
-            Console.WriteLine(hash);
-
-            (string hash, byte[] hashWithoutHex) WriteTreeObject(string directory)
-            {
-                IEnumerable<string> directories = Directory.GetDirectories(directory)
-                    .Where(dir => !dir.EndsWith(Path.DirectorySeparatorChar + ".git"));
-                string[] files = Directory.GetFiles(directory);
-                IOrderedEnumerable<string> entries = directories.Concat(files).Order();
-                using MemoryStream treeObjectBody = new();
-                foreach (string? entry in entries)
-                {
-                    byte[] rowBytes;
-                    if (Directory.Exists(entry))
-                    {
-                        (string _, byte[] treeHashRow) = WriteTreeObject(entry);
-                        string treeObjectRow = $"40000 {Path.GetFileName(entry)}\0";
-                        byte[] treeObjectRowBytes = Encoding.ASCII.GetBytes(treeObjectRow);
-                        rowBytes = [..treeObjectRowBytes, ..treeHashRow];
-                    }
-                    else
-                    {
-                        (string _, byte[] blobHashRow) = WriteBlobObject(entry);
-                        string blobObjectRow = $"100644 {Path.GetFileName(entry)}\0";
-                        byte[] blobObjectRowBytes = Encoding.ASCII.GetBytes(blobObjectRow);
-                        rowBytes = [..blobObjectRowBytes, ..blobHashRow];
-                    }
-
-                    treeObjectBody.Write(rowBytes, 0, rowBytes.Length);
-                }
-
-                string treeObjectHeader = $"tree {treeObjectBody.Length}\0";
-                byte[] treeObjectHeaderBytes =
-                    Encoding.ASCII.GetBytes(treeObjectHeader);
-                byte[] treeObjectBytes =
-                    [..treeObjectHeaderBytes, ..treeObjectBody.ToArray()];
-                string treeHash = treeObjectBytes.GetSha1Hash();
-                string treeObjectPath =
-                    Path.Combine(".git", "objects", treeHash[..2], treeHash[2..]);
-                Directory.CreateDirectory(Path.GetDirectoryName(treeObjectPath)!);
-                using Stream fs = File.Create(treeObjectPath);
-                treeObjectBytes.CompressZlibData(fs);
-                return (treeHash, SHA1.HashData(treeObjectBytes));
-            }
-
-            (string hash, byte[] hashWithoutHex) WriteBlobObject(string filePath)
-            {
-                byte[] fileContent = File.ReadAllBytes(filePath);
-                string blobHeader = $"blob {fileContent.Length}\0";
-                byte[] blobHeaderBytes = Encoding.ASCII.GetBytes(blobHeader);
-                byte[] blobObjectBytes = [..blobHeaderBytes, ..fileContent];
-                string blobHash = blobObjectBytes.GetSha1Hash();
-                string blobObjectPath =
-                    Path.Combine(".git", "objects", blobHash[..2], blobHash[2..]);
-                Directory.CreateDirectory(Path.GetDirectoryName(blobObjectPath)!);
-                using FileStream fs = File.Create(blobObjectPath);
-                blobObjectBytes.CompressZlibData(fs);
-                return (blobHash, SHA1.HashData(blobObjectBytes));
-            }
+          Console.WriteLine(name);
         }
         else
         {
-            throw new ArgumentException($"Unknown command {command}");
+          Console.WriteLine($"{mode.PadLeft(6, '0')} {type} {sha1}\t{name}");
         }
-        
+      }
     }
-    
+    else if (command == "write-tree")
+    {
+      var currentPath = Directory.GetCurrentDirectory();
+      var currentFilePathHash = GenerateTreeObjectFileHash(currentPath);
+      if (currentFilePathHash is null)
+      {
+        Console.WriteLine("No files to hash");
+        return;
+      }
+
+      var hashString = Convert.ToHexString(currentFilePathHash).ToLower();
+      Console.Write(hashString);
+    }
+    else
+    {
+      throw new ArgumentException($"Unknown command {command}");
+    }
+
+    static byte[]? GenerateTreeObjectFileHash(string currentPath)
+    {
+      if (currentPath.Contains(".git"))
+      {
+        return null;
+      }
+
+      var files = Directory.GetFiles(currentPath);
+      var directories = Directory.GetDirectories(currentPath);
+      var treeEntries = new List<TreeEntry>();
+      foreach (var file in files)
+      {
+        string fileName = Path.GetFileName(file);
+        var fileContentInBytes = File.ReadAllBytes(file);
+        var fileHash = GenerateHashByte("blob", fileContentInBytes);
+        var fileEntry = new TreeEntry("100644", fileName, fileHash);
+        treeEntries.Add(fileEntry);
+      }
+
+      for (var i = 0; i < directories.Length; i++)
+      {
+        var directoryName = Path.GetFileName(directories[i]);
+        var directoryHash = GenerateTreeObjectFileHash(directories[i]);
+        if (directoryHash is not null)
+        {
+          var directoryEntry = new TreeEntry("40000", directoryName, directoryHash);
+          treeEntries.Add(directoryEntry);
+        }
+      }
+
+      var treeObject = CreateTreeObject(treeEntries);
+      return GenerateHashByte("tree", treeObject);
+    }
+
+    static byte[] GenerateHashByte(string gitObjectType, byte[] input)
+    {
+      var objectHeader = CreateObjectHeaderInBytes(gitObjectType, input);
+      var gitObject = objectHeader.Concat(input).ToArray();
+      var hash = System.Security.Cryptography.SHA1.HashData(gitObject);
+      using MemoryStream memoryStream = new();
+      using (ZLibStream zlibStream = new(memoryStream, CompressionLevel.Optimal))
+      {
+        zlibStream.Write(gitObject, 0, gitObject.Length);
+      }
+
+      var compressedObject = memoryStream.ToArray();
+      var hashString = Convert.ToHexString(hash).ToLower();
+      Directory.CreateDirectory($".git/objects/{hashString[..2]}");
+      File.WriteAllBytes($".git/objects/{hashString[..2]}/{hashString[2..]}",
+        compressedObject);
+      return hash;
+    }
+
+    static byte[] CreateObjectHeaderInBytes(string gitObjectType, byte[] input)
+    {
+      var header = $"{gitObjectType} {input.Length}\x00";
+      return System.Text.Encoding.UTF8.GetBytes(header);
+    }
+
+    static byte[] CreateTreeObject(List<TreeEntry> treeEntries)
+    {
+      using var memoryStream = new MemoryStream();
+      using var streamWriter =
+        new StreamWriter(memoryStream, new System.Text.UTF8Encoding(false));
+      foreach (var entry in treeEntries.OrderBy(x => x.FileName))
+      {
+        var line = $"{entry.Mode} {entry.FileName}\x00";
+        streamWriter.Write(line);
+        streamWriter.Flush();
+        memoryStream.Write(entry.Hash, 0, entry.Hash.Length);
+      }
+
+      streamWriter.Flush();
+      return memoryStream.ToArray();
+    }
+  }
 }
+
+public record TreeEntry(string Mode, string FileName, byte[] Hash);
