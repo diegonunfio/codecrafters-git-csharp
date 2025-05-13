@@ -4,7 +4,6 @@ using System.IO.Compression;
 using System.Security.Cryptography;
 using System.Text;
 
-using ICSharpCode.SharpZipLib.Zip.Compression.Streams;
 
 class Program
 {
