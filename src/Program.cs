@@ -18,7 +18,7 @@ class Program
             Directory.CreateDirectory(".git/refs/heads");
             File.WriteAllText(".git/HEAD", "ref: refs/heads/master\n");
         }
-        if (args.Length == 3 && args[0] == "ls-tree" && args[1] == "--name-only")
+        else if (args.Length == 3 && args[0] == "ls-tree" && args[1] == "--name-only")
         {
             string treeSha = args[2];
             string objectPath = $".git/objects/{treeSha.Substring(0, 2)}/{treeSha.Substring(2)}";
