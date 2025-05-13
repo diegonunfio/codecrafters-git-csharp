@@ -173,13 +173,13 @@ class Program
       if (lastSegment.EndsWith(".git", StringComparison.OrdinalIgnoreCase)) {
         lastSegment = lastSegment.Substring(0, lastSegment.Length - 4);
       }
-    //  directory = lastSegment;
-     // try {
-       // clone(url, dir);
- //       Console.WriteLine($"Cloned repo from {url} into {directory}");
-    //  } catch (Exception ex) {
-        //Console.WriteLine($"Error cloning repo: {ex.Message}");
- //     }
+    directory = lastSegment;
+     try {
+      Repository.clone(url, dir);
+       Console.WriteLine($"Cloned repo from {url} into {directory}");
+     } catch (Exception ex) {
+        Console.WriteLine($"Error cloning repo: {ex.Message}");
+      }
     }
     private static string CreateCommit(string treeHash, string parentHash,
                                        string message) {
@@ -305,3 +305,7 @@ class Program
     }
     public record TreeEntry(string Mode, string FileName, byte[] Hash);
   }
+
+internal class Repository
+{
+}
