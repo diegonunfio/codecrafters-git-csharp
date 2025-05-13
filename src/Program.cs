@@ -4,121 +4,50 @@ using System.IO.Compression;
 using System.Security.Cryptography;
 using System.Text;
 
+
 class Program
 {
-    public static void Init()
+    static void Main(string[] args)
     {
-        Directory.CreateDirectory(".git/objects/info");
-        Directory.CreateDirectory(".git/objects/pack");
-        Directory.CreateDirectory(".git/refs/heads");
-        File.WriteAllText(".git/HEAD", "ref: refs/heads/master\n");
-        Console.WriteLine("Initialized git repository");
-    }
-
-    public static byte[] DecompressGitObject(byte[] compressed)
-    {
-        using var input = new MemoryStream(compressed, 2, compressed.Length - 2);
-        using var deflate = new DeflateStream(input, CompressionMode.Decompress);
-        using var output = new MemoryStream();
-        deflate.CopyTo(output);
-        return output.ToArray();
-    }
-
-    public static void LsTreeNameOnly(string sha)
-    {
-        string path = Path.Combine(".git/objects", sha.Substring(0, 2), sha.Substring(2));
-        if (!File.Exists(path))
+        if (args.Length == 3 && args[0] == "ls-tree" && args[1] == "--name-only")
         {
-            Console.Error.WriteLine("Tree object not found: " + path);
-            Environment.Exit(1);
-        }
+            string treeSha = args[2];
+            string objectPath = $".git/objects/{treeSha.Substring(0, 2)}/{treeSha.Substring(2)}";
 
-        byte[] compressed = File.ReadAllBytes(path);
-        byte[] decompressed = DecompressGitObject(compressed);
-
-        int index = Array.IndexOf(decompressed, (byte)0);
-        int pos = index + 1;
-
-        while (pos < decompressed.Length)
-        {
-            int spaceIndex = Array.IndexOf(decompressed, (byte)' ', pos);
-            string mode = Encoding.ASCII.GetString(decompressed, pos, spaceIndex - pos);
-            pos = spaceIndex + 1;
-
-            int nullIndex = Array.IndexOf(decompressed, (byte)0, pos);
-            string name = Encoding.ASCII.GetString(decompressed, pos, nullIndex - pos);
-            pos = nullIndex + 1;
-
-            pos += 20;
-            Console.WriteLine(name);
-        }
-    }
-
-    public static void HashObjectWrite(string filePath)
-    {
-        if (!File.Exists(filePath))
-        {
-            Console.Error.WriteLine("File not found: " + filePath);
-            Environment.Exit(1);
-        }
-
-        byte[] content = File.ReadAllBytes(filePath);
-        string header = $"blob {content.Length}\0";
-        byte[] headerBytes = Encoding.ASCII.GetBytes(header);
-
-        byte[] fullContent = new byte[headerBytes.Length + content.Length];
-        Buffer.BlockCopy(headerBytes, 0, fullContent, 0, headerBytes.Length);
-        Buffer.BlockCopy(content, 0, fullContent, headerBytes.Length, content.Length);
-
-        using var sha1 = SHA1.Create();
-        byte[] shaBytes = sha1.ComputeHash(fullContent);
-        string shaHex = BitConverter.ToString(shaBytes).Replace("-", "").ToLower();
-
-        string dir = Path.Combine(".git/objects", shaHex.Substring(0, 2));
-        string file = shaHex.Substring(2);
-        Directory.CreateDirectory(dir);
-        string objectPath = Path.Combine(dir, file);
-
-        if (!File.Exists(objectPath))
-        {
-            using var output = new MemoryStream();
-            using (var deflate = new ZLibStream(output, CompressionLevel.Optimal, leaveOpen: true))
+            if (!File.Exists(objectPath))
             {
-                deflate.Write(fullContent, 0, fullContent.Length);
+                Console.Error.WriteLine("Object not found");
+                return;
             }
-            File.WriteAllBytes(objectPath, output.ToArray());
-        }
 
-        Console.WriteLine(shaHex);
-    }
+            byte[] compressedData = File.ReadAllBytes(objectPath);
+            byte[] decompressedData;
 
+            using (MemoryStream input = new MemoryStream(compressedData))
+            using (DeflateStream zlibStream = new DeflateStream(input, CompressionMode.Decompress))
+            using (MemoryStream output = new MemoryStream())
+            {
+                zlibStream.CopyTo(output);
+                decompressedData = output.ToArray();
+            }
 
-    public static void Main(string[] args)
-    {
-        try
-        {
-            if (args.Length == 1 && args[0] == "init")
+            int headerEnd = Array.IndexOf(decompressedData, (byte)0); 
+            int index = headerEnd + 1;
+
+            while (index < decompressedData.Length)
             {
-                Init();
+                int spaceIndex = Array.IndexOf(decompressedData, (byte)' ', index);
+                string mode = Encoding.ASCII.GetString(decompressedData, index, spaceIndex - index);
+                index = spaceIndex + 1;
+                
+                int nullIndex = Array.IndexOf(decompressedData, (byte)0, index);
+                string name = Encoding.ASCII.GetString(decompressedData, index, nullIndex - index);
+                index = nullIndex + 1;
+
+                index += 20;
+
+                Console.WriteLine(name);
             }
-            else if (args.Length == 3 && args[0] == "ls-tree" && args[1] == "--name-only")
-            {
-                LsTreeNameOnly(args[2]);
-            }
-            else if (args.Length == 3 && args[0] == "hash-object" && args[1] == "-w")
-            {
-                HashObjectWrite(args[2]);
-            }
-            else
-            {
-                Console.WriteLine("Uso: git.sh ls-tree --name-only <sha>");
-                Environment.Exit(1);
-            }
-        }
-        catch (Exception e)
-        {
-            Console.Error.WriteLine(e);
-            Environment.Exit(1);
         }
     }
 }
