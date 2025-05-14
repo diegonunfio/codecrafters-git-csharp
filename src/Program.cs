@@ -3,15 +3,16 @@ using System.IO;
 using System.IO.Compression;
 using System.Security.Cryptography;
 using System.Text;
-
-
-class Program
-{
+using LibGit2Sharp;
+namespace CodeCrafters {
+  public class Program {
     public static void Main(string[] args) {
       if (args.Length < 1) {
         Console.WriteLine("Please provide a command.");
         return;
       }
+      // You can use print statements as follows for debugging, they'll be
+      // visible when running tests.
       Console.Error.WriteLine("Logs from your program will appear here!");
       string command = args[0];
       string[]? flags = args.Where(x => x.StartsWith('-')).ToArray();
@@ -20,10 +21,14 @@ class Program
       string[]? hashes =
           args.Where(x => !flags.Contains(x) && x != command).ToArray();
       if (command == "init") {
+        // Uncomment this block to pass the first stage
+        //
         InitRepo();
       } else if (command == "cat-file" && args[1] == "-p") {
+        // Create total path for finding the correct file
         CatFile(args[2]);
       } else if (command == "hash-object" && args[1] == "-w") {
+        // Read from the given file
         HashObjectW(args[2]);
       } else if (command == "ls-tree" && args[1] == "--name-only") {
         if (args.Length < 3 || args[1] != "--name-only") {
@@ -63,6 +68,7 @@ class Program
       string objectDir =
           Path.Combine(".git", "objects", treeSha.Substring(0, 2));
       string objectPath = Path.Combine(objectDir, treeSha.Substring(2));
+      // Path is now correct
       if (!File.Exists(objectPath)) {
         Console.WriteLine($"Fatal: Not a valid object name {treeSha}");
         return;
@@ -91,7 +97,7 @@ class Program
         string name = Encoding.UTF8.GetString(decompressedData, spaceIndex + 1,
                                               nullTerminator - spaceIndex - 1);
         entries.Add(name);
-        contentStart = nullTerminator + 21;
+        contentStart = nullTerminator + 21; // SHA is 20 plus 1 for null
       }
       foreach (string entry in entries.OrderBy(e => e)) {
         Console.WriteLine(entry);
@@ -100,12 +106,14 @@ class Program
     private static void HashObjectW(string newfile) {
       byte nullByte = (byte)0;
       string startPath = "./.git/objects/";
+      // Get the text from file
       using FileStream fs = File.OpenRead(newfile);
       MemoryStream ms = new();
       fs.CopyTo(ms);
       Memory<byte> buffer = new Memory<byte>(ms.GetBuffer())[..(int)ms.Length];
       string obj = Encoding.UTF8.GetString(
-          buffer.Span); 
+          buffer.Span); // The Above WORKS!!!
+                        // obj now has the content from the file
       byte[] blobContent = Encoding.UTF8.GetBytes(obj);
       int blobLen = blobContent.Length;
       string s = "blob " + Convert.ToString(blobLen);
@@ -118,9 +126,11 @@ class Program
       byte[] blob = Combine(blobStart, blobContent);
       // create a SHA hash from the content of file
       string hash = ShaHash(
-          sb.ToString()); 
+          sb.ToString()); // Has the 40 Character hash in the hash string
+      // Needs to print out a 40 character sha hash
       hash = hash.ToLower();
       Console.WriteLine(hash);
+      // Write the blob to the file just like git does
       string firstDir = hash.Substring(0, 2);
       string secondFile = hash.Substring(2);
       string full = startPath + firstDir + "/" + secondFile;
@@ -128,8 +138,14 @@ class Program
       if (!Directory.Exists(dirPath)) {
         Directory.CreateDirectory(dirPath);
       }
+      // Create the blob file
+      // Blob is stored as follows
+      // blob <size>\0<content>
       using FileStream fw = File.OpenWrite(full);
       using ZLibStream zs = new(fw, CompressionMode.Compress);
+      // write the blob to the file with zlib compression
+      //  zs.Write(blob);  DOESN'T WORK
+      //  zs.CopyTo(fw);
       zs.Write(blob);
     }
     private static void InitRepo() {
@@ -143,10 +159,14 @@ class Program
       string middleDir = fileNameAndDir.Substring(0, 2);
       string newFile = fileNameAndDir.Substring(2);
       string fullPath = "./.git/objects/" + middleDir + "/" + newFile;
+      // Console.WriteLine("Fullpath: " + fullPath);
+      // Fullpath is correct,
+      // Get info from the git blob using zlib decompressor
       using FileStream fs = File.OpenRead(fullPath);
       using ZLibStream zs = new(fs, CompressionMode.Decompress);
       MemoryStream ms = new();
       zs.CopyTo(ms);
+      // put info into memory buffer
       Memory<byte> buffer = new Memory<byte>(ms.GetBuffer())[..(int)ms.Length];
       string obj = Encoding.UTF8.GetString(buffer.Span[..4]);
       int nullByte = buffer[5..].Span.IndexOf((byte)0);
@@ -173,11 +193,11 @@ class Program
       if (lastSegment.EndsWith(".git", StringComparison.OrdinalIgnoreCase)) {
         lastSegment = lastSegment.Substring(0, lastSegment.Length - 4);
       }
-    directory = lastSegment;
-     try {
-      Repository.clone(url, dir);
-       Console.WriteLine($"Cloned repo from {url} into {directory}");
-     } catch (Exception ex) {
+      directory = lastSegment;
+      try {
+        Repository.Clone(url, dir);
+        Console.WriteLine($"Cloned repo from {url} into {directory}");
+      } catch (Exception ex) {
         Console.WriteLine($"Error cloning repo: {ex.Message}");
       }
     }
@@ -305,7 +325,4 @@ class Program
     }
     public record TreeEntry(string Mode, string FileName, byte[] Hash);
   }
-
-internal class Repository
-{
 }
