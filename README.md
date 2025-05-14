@@ -1,59 +1,32 @@
-[![progress-banner](https://backend.codecrafters.io/progress/git/abfeac02-c949-4e6f-ad39-d8655d467469)](https://app.codecrafters.io/users/codecrafters-bot?r=2qF)
+CodeCrafters Git Challenge – C# Implementation
+This repository contains my complete solution for the CodeCrafters Git Challenge, implemented in C#.
 
-This is a starting point for C# solutions to the
-["Build Your Own Git" Challenge](https://codecrafters.io/challenges/git).
+Challenge Description:
+The challenge consists of implementing several essential functions of the Git version control system from scratch, such as initialization, commits, logging, verification, and more. The goal is to understand the inner workings of Git and develop advanced low-level programming skills.
 
-In this challenge, you'll build a small Git implementation that's capable of
-initializing a repository, creating commits and cloning a public repository.
-Along the way we'll learn about the `.git` directory, Git objects (blobs,
-commits, trees etc.), Git's transfer protocols and more.
+Challenge Status
+ | 100% Completed
+ | Only about 10% of participants manage to complete all stages
 
-**Note**: If you're viewing this repo on GitHub, head over to
-[codecrafters.io](https://codecrafters.io) to try the challenge.
+📌 Key Features
 
-# Passing the first stage
+Pure C# implementation, <b>no existing Git libraries used too</b>
 
-The entry point for your Git implementation is in `src/Program.cs`. Study and
-uncomment the relevant code, and push your changes to pass the first stage:
+Manual reading and writing of the .git file system
 
-```sh
-git commit -am "pass 1st stage" # any msg
-git push origin master
-```
+Coding Git objects (blob, tree, commit) from scratch
 
-That's all!
+Handling SHA-1 trees and zlib compression
 
-# Stage 2 & beyond
+Automated testing provided by CodeCrafters
 
-Note: This section is for stages 2 and beyond.
+🎯 Also my learnings:
 
-1. Ensure you have `dotnet (9.0)` installed locally
-1. Run `./your_program.sh` to run your Git implementation, which is implemented
-   in `src/Program.cs`.
-1. Commit your changes and run `git push origin master` to submit your solution
-   to CodeCrafters. Test output will be streamed to your terminal.
+Deep dive into the inner workings of Git
 
-# Testing locally
+Manipulation of binary files and data structures
 
-The `your_program.sh` script is expected to operate on the `.git` folder inside
-the current working directory. If you're running this inside the root of this
-repository, you might end up accidentally damaging your repository's `.git`
-folder.
+Optimizing code to improve performance and readability
 
-We suggest executing `your_program.sh` in a different folder when testing
-locally. For example:
-
-```sh
-mkdir -p /tmp/testing && cd /tmp/testing
-/path/to/your/repo/your_program.sh init
-```
-
-To make this easier to type out, you could add a
-[shell alias](https://shapeshed.com/unix-alias/):
-
-```sh
-alias mygit=/path/to/your/repo/your_program.sh
-
-mkdir -p /tmp/testing && cd /tmp/testing
-mygit init
-```
+🚀 Why this challenge?
+As a backend developer specializing in C# and .NET, I wanted to test my knowledge by taking on a low-level challenge that would push me out of my comfort zone. This experience not only taught me a lot about Git, but also strengthened my command of the language.
