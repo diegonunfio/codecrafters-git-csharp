@@ -30,3 +30,7 @@ Optimizing code to improve performance and readability
 
 🚀 Why this challenge?
 As a backend developer specializing in C# and .NET, I wanted to test my knowledge by taking on a low-level challenge that would push me out of my comfort zone. This experience not only taught me a lot about Git, but also strengthened my command of the language.
+
+
+![6957549_preview (1)](https://github.com/user-attachments/assets/443370aa-86b6-4b98-bc4a-0235bf25f8b1)
+
